@@ -23,25 +23,7 @@ String.prototype.format = function() {
 */
 
 
-var serverPool = [
-  //{
-    //ipaddr: '172.23.106.24' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.106.25' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.106.26' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.106.27' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.106.28' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.106.29' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.106.116' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.107.153' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.106.247' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.106.248' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.106.84' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.105.19' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.107.153' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.105.87' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-//, { ipaddr: '172.23.107.140' , username: '' , os: 'centos' , ver: '6' , state: 'available' }
-
-];
+var serverPool = [ ];
 
 var server_allocated = [];
 
@@ -64,12 +46,12 @@ var interval = setInterval(function() {
         
       }
   }
-}, 10000);
+}, 1000000);
 
 
 server.connection ({
         host: '172.23.105.177',
-        port: Number(process.argv[2] || 8081)
+        port: Number(process.argv[2] || 8082)
     });
 
 server.route({path: '/showall', method:'GET', handler: showall});
@@ -83,9 +65,11 @@ server.route({path: '/removeserver/{ip}', method:'GET', handler: removeserver});
 
 function getavailablecount(request,reply) {
 
-  console.log( "here is a string os {0}".format(request.params.os ));
+  //console.log( "here is a string os {0}".format(request.params.os ));
+  var poolId = request.query.poolId || '12hour';
   var N1QLQuery =  couchbase.N1qlQuery; 
-  var queryString = "SELECT count(*) FROM `QE-server-pool` where state ='available' and os ='".concat(request.params.os).concat("'");
+  var queryString = "SELECT count(*) FROM `QE-server-pool` where state ='available' and os ='{0}' and poolId ='{1}'".format(request.params.os, poolId);
+
   console.log( queryString );
   var query = N1QLQuery.fromString( queryString );
 
@@ -146,12 +130,16 @@ function getservers(request,reply) {
   var available = 0;
   var username = request.params.username || '';
   var expires_at = date.toJSON(date.setMinutes(date.getMinutes()+expiresin));
+  var poolId = request.query.poolId || '12hour';
+  var dontReserve = request.query.dontReserve || false;
+
+
   console.log(date);
 
   console.log(request.query );
 
   var N1QLQuery =  couchbase.N1qlQuery;
-  var countQueryString =  "SELECT count(*) FROM `QE-server-pool` where state ='available' and os = '{0}'".format(request.query.os);
+  var countQueryString =  "SELECT count(*) FROM `QE-server-pool` where state ='available' and os = '{0}' and poolId = '{1}'".format(request.query.os, poolId);
   console.log( countQueryString );
   var countQuery = N1QLQuery.fromString( countQueryString );
 
@@ -271,25 +259,9 @@ function showall (request, reply) {
         });
     }
 
-function loadFromCB() {
-        console.log('loading from cb');
-        
-    }
 
-/*
-server.route({path: '/bookvms',method:'POST',handler:reserve_vms});
-
-function reserve_vms (request,reply){
-	if (request.payload.count < vms_available.length){
-		var allocated_vms = vms_available.slice(0,request.payload.count);
-		reply(allocated_vms);
-	}
-	
-}
-*/
 
 server.start( function() {
         console.log('Server running at:', server.info.uri);
-        loadFromCB();
 });
 
