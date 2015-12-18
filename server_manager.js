@@ -28,26 +28,6 @@ var serverPool = [ ];
 var server_allocated = [];
 
 
-var interval = setInterval(function() {
-  var now = new Date();
-  var now_seconds = now.getTime() / 1000;
-  console.log("now_seconds",now_seconds);
-
-  for (var i = 0; i < serverPool.length; i++) {
-      if (serverPool[i].state === 'booked') {
-        var expires = new Date(serverPool[i].expires_at);
-        var expires_seconds = expires.getTime()/1000
-        console.log( "expires_seconds", expires_seconds)
-        if (expires_seconds <= now_seconds) {
-          serverPool[i].state = 'available';
-          serverPool[i].username = '';
-          serverPool[i].expires_at = '';
-        }
-        
-      }
-  }
-}, 1000000);
-
 
 server.connection ({
         host: '172.23.105.177',
@@ -70,7 +50,7 @@ function getavailablecount(request,reply) {
   var N1QLQuery =  couchbase.N1qlQuery; 
   var queryString = "SELECT count(*) FROM `QE-server-pool` where state ='available' and os ='{0}' and poolId ='{1}'".format(request.params.os, poolId);
 
-  console.log( queryString );
+  console.log( Date().toLocaleString() + " getavailablecount:" + queryString );
   var query = N1QLQuery.fromString( queryString );
 
   bucket.query(query,function(err,result){
@@ -133,8 +113,7 @@ function getservers(request,reply) {
   var poolId = request.query.poolId || '12hour';
   var dontReserve = request.query.dontReserve || false;
 
-
-  console.log(date);
+  console.log( Date().toLocaleString() + ' getservers');
 
   console.log(request.query );
 
@@ -143,8 +122,8 @@ function getservers(request,reply) {
   console.log( countQueryString );
   var countQuery = N1QLQuery.fromString( countQueryString );
 
-  var getServersQueryString =  "SELECT ipaddr FROM `QE-server-pool` where state ='available' and os = '{0}' limit {1}".format(
-              request.query.os, requestCount );
+  var getServersQueryString =  "SELECT ipaddr FROM `QE-server-pool` where state ='available' and os = '{0}' and poolId = '{1}' limit {2}".format(
+              request.query.os, poolId, requestCount );
   console.log(getServersQueryString);
   var getServersQuery = N1QLQuery.fromString( getServersQueryString );
 
@@ -171,11 +150,10 @@ function getservers(request,reply) {
         	if (err1) throw err1;
                 for (s in result) {
                     serverList.push(result[s]['ipaddr']);
-                    var updateString = "update `QE-server-pool` set state='booked',username='`".concat(username).concat("`' where ipaddr='").concat(result[s]['ipaddr']).concat("'");
+                    var updateString = "update `QE-server-pool` set state='booked',username='".concat(username).concat("' where ipaddr='").concat(result[s]['ipaddr']).concat("'");
                     console.log('update string', updateString);
                     var updateServerRequest = N1QLQuery.fromString( updateString );
                     bucket.query(updateServerRequest,function(err1,result){
-                	console.log('update servers result', result);
                         if (err1) throw err1;
                     });
                  }
@@ -187,61 +165,15 @@ function getservers(request,reply) {
 
 
 
-function getservers1(request,reply) {
-  var date = new Date();
-  var serverlist = [];
-  var count = request.query.count || 1;
-  var expiresin = request.query.expiresin || 1; // minutes default = 1 hour
-  var available = 0;
-  var username = request.params.username || '';
-  var expires_at = date.toJSON(date.setMinutes(date.getMinutes()+expiresin));
-  console.log(date);
-  
-
-  for (var i = 0; i < serverPool.length; i++) {
-    if (serverPool[i].state === 'available') {
-      available++;
-    }
-  };
-
-  if (count <= available) {
-    for (var i = 0; i < serverPool.length; i++) {
-      if (serverPool[i].state === 'available') {
-        serverPool[i].state = 'booked';
-        serverPool[i].username = username;
-        serverPool[i].expires_at = expires_at;
-        serverlist.push(serverPool[i]);    
-      }
-
-      if (serverlist.length == count) {
-        break;
-      }
-    }
-    reply(serverlist);
-  } else {
-    // Reply with 403 request declined
-    var error = Boom.badRequest('No resource left');
-    error.output.statusCode = 499;    // Assign a custom error code
-    error.reformat();
-
-    error.output.payload.custom = 'The current number of VMs requested is not available'; // Add custom key
-
-    reply(error);
-    
-  }
-
-  
-
-}
-
 function releaseservers(request,reply){
   var username = request.params.username;
   var N1QLQuery =  couchbase.N1qlQuery;
-  var updateString = "update `QE-server-pool` set state='available',username='' where username='`".concat(username).concat("`'");
+  var updateString = "update `QE-server-pool` set state='available',username='' where username='".concat(username).concat("'");
+  console.log( Date().toLocaleString() + ' releaseservers:' + username);
   console.log('update string', updateString);
   var updateServerRequest = N1QLQuery.fromString( updateString );
   bucket.query(updateServerRequest,function(err1,result){
-                        console.log('update servers result', result);
+                        //console.log('update servers result', result);
                         if (err1) throw err1;
                 reply();
       });
@@ -262,6 +194,6 @@ function showall (request, reply) {
 
 
 server.start( function() {
-        console.log('Server running at:', server.info.uri);
+        console.log(Date().toLocaleString() + 'Server running at:', server.info.uri);
 });
 
